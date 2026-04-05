@@ -1,0 +1,708 @@
+{
+  "name": "Instagram Handle Finder - Dynamic Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-1",
+              "name": "input_sheet_id",
+              "value": "PASTE_YOUR_INPUT_SHEET_ID_HERE",
+              "type": "string"
+            },
+            {
+              "id": "cfg-2",
+              "name": "input_sheet_tab",
+              "value": "Sheet1",
+              "type": "string"
+            },
+            {
+              "id": "cfg-3",
+              "name": "output_sheet_id",
+              "value": "PASTE_YOUR_OUTPUT_SHEET_ID_HERE",
+              "type": "string"
+            },
+            {
+              "id": "cfg-4",
+              "name": "output_sheet_tab",
+              "value": "Competitor_Results",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -7136,
+        784
+      ],
+      "id": "b98bd8ca-5bc7-40d1-b685-9fb1f2575c02",
+      "name": "⚙️ Config – Sheet IDs"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA",
+          "mode": "list",
+          "cachedResultName": "Insta extract - Himanshu",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 770488338,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA/edit#gid=770488338"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -6912,
+        784
+      ],
+      "id": "51a8989f-df47-4784-86a4-62fde064a6a5",
+      "name": "Read Competitors Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "XxZd7R58w9xVgLml",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -6704,
+        784
+      ],
+      "id": "88399602-a195-42ce-a691-a691640c1799",
+      "name": "Loop One by One"
+    },
+    {
+      "parameters": {
+        "url": "https://google.serper.dev/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "api_key",
+              "value": "=cef8415bee6ec7ac203b815937bb0090014c7183"
+            },
+            {
+              "name": "q",
+              "value": "=site:instagram.com \"{{$json.brand_name}}\" India official"
+            },
+            {
+              "name": "gl",
+              "value": "in"
+            },
+            {
+              "name": "num",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "9ef7b0d2-5de1-417d-9c36-c7fe85ff74b4",
+      "name": "Search Instagram Handle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -6480,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// FIX 1: ScraperAPI response body does not carry competitor_name/brand_name/brand_category.\n// We must pull those from the loop source node, not from the HTTP response body.\nconst body = $input.item.json;\nconst loopItem = $('Loop One by One').item.json;\n\nconst results = body.organic_results || [];\n\nconst instagramRegex = /instagram\\.com\\/([A-Za-z0-9._]{1,30})/;\nlet result_link = '';\n\nfor (const result of results) {\n  const link = result.link || result.url || '';\n  if (instagramRegex.test(link)) {\n    result_link = link;\n    break;\n  }\n}\n\nif (!result_link) {\n  const raw = JSON.stringify(body);\n  const found = raw.match(/https?:\\/\\/(?:www\\.)?instagram\\.com\\/[A-Za-z0-9._]{1,30}/);\n  if (found) result_link = found[0];\n}\n\nreturn {\n  json: {\n    competitor_name: loopItem.competitor_name,\n    brand_name: loopItem.brand_name,\n    brand_category: loopItem.brand_category,\n    serpapi_result_link: result_link\n  }\n};"
+      },
+      "id": "2b570b98-5160-438c-8fff-7369a8fee3ca",
+      "name": "Extract Instagram Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6256,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\nconst link = data.serpapi_result_link || '';\n\nconst match = link.match(/instagram\\.com\\/([A-Za-z0-9._]{1,30})/);\n\nconst systemPages = ['p','explore','accounts','reel','reels','tv',\n  'stories','direct','share','about','press','legal','privacy','safety','help'];\n\nif (!match) {\n  return { json: { ...data, handle_valid: false, failure_reason: 'NO_HANDLE_EXTRACTED' } };\n}\n\nconst handle = match[1].toLowerCase();\n\nif (systemPages.includes(handle)) {\n  return { json: { ...data, handle_valid: false, failure_reason: 'SYSTEM_PAGE_URL' } };\n}\n\nif (handle.length < 2 || handle.length > 30) {\n  return { json: { ...data, handle_valid: false, failure_reason: 'INVALID_HANDLE_LENGTH' } };\n}\n\nreturn { json: { ...data, candidate_handle: handle, handle_valid: true } };"
+      },
+      "id": "d5a42386-9174-47ba-9cb6-2558625c1399",
+      "name": "Validate Handle Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6048,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{$json.handle_valid}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e3a12f54-9bf5-446e-b6b3-94af5293e1fa",
+      "name": "Handle Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -5824,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "apify_api_an64a5arQyFBtVNhWxVX3yMl31kHZk3dXKkS"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"usernames\": [\"{{ $json.candidate_handle }}\"]}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "c09c16a6-2100-4251-8afe-be54ff7d48ac",
+      "name": "Verify Live Instagram Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -5600,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// FIX 2: Apify returns raw profile data with no competitor context fields.\n// Pull competitor_name/brand_name/brand_category/candidate_handle from\n// the upstream Validate Handle Format node which still carries them.\nconst upstream = $('Validate Handle Format').item.json;\nconst item = $input.item.json;\n\n// Apify sync endpoint returns an array directly — unwrap it\nlet profile = item;\nif (Array.isArray(item)) {\n  profile = item[0] || {};\n}\n\nconst username = profile.username || '';\nconst followersCount = profile.followersCount || 0;\nconst postsCount = profile.postsCount || profile.mediaCount || 0;\nconst candidateHandle = upstream.candidate_handle || '';\n\nif (!username) {\n  return { json: {\n    competitor_name: upstream.competitor_name,\n    brand_name: upstream.brand_name,\n    brand_category: upstream.brand_category,\n    candidate_handle: candidateHandle,\n    profile_valid: false,\n    failure_reason: 'PROFILE_NOT_FOUND'\n  } };\n}\n\nconst usernameMatch = username.toLowerCase() === candidateHandle.toLowerCase();\nconst hasFollowers = followersCount > 100;\nconst hasPosts = postsCount > 0;\n\nif (!usernameMatch) {\n  return { json: {\n    competitor_name: upstream.competitor_name,\n    brand_name: upstream.brand_name,\n    brand_category: upstream.brand_category,\n    candidate_handle: candidateHandle,\n    profile_valid: false,\n    failure_reason: 'USERNAME_MISMATCH'\n  } };\n}\nif (!hasFollowers) {\n  return { json: {\n    competitor_name: upstream.competitor_name,\n    brand_name: upstream.brand_name,\n    brand_category: upstream.brand_category,\n    candidate_handle: candidateHandle,\n    profile_valid: false,\n    failure_reason: 'INSUFFICIENT_FOLLOWERS'\n  } };\n}\nif (!hasPosts) {\n  return { json: {\n    competitor_name: upstream.competitor_name,\n    brand_name: upstream.brand_name,\n    brand_category: upstream.brand_category,\n    candidate_handle: candidateHandle,\n    profile_valid: false,\n    failure_reason: 'NO_POSTS'\n  } };\n}\n\nreturn { json: {\n  competitor_name: upstream.competitor_name,\n  brand_name: upstream.brand_name,\n  brand_category: upstream.brand_category,\n  candidate_handle: candidateHandle,\n  instagram_followers: followersCount,\n  instagram_bio: profile.biography || '',\n  profile_valid: true\n} };"
+      },
+      "id": "30b250fb-a58d-4bd9-a591-4d16bab7d9bc",
+      "name": "Extract Profile Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5376,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Consolidate failure reason from wherever we are in the pipeline\nconst data = $input.item.json;\nreturn { json: {\n  competitor_name: data.competitor_name || '',\n  brand_name: data.brand_name || '',\n  brand_category: data.brand_category || '',\n  instagram_handle: '',\n  failure_reason: data.failure_reason || 'UNKNOWN_FAILURE'\n} };"
+      },
+      "id": "3aea15b6-6599-47da-94ca-0bc3110faf11",
+      "name": "Prepare Failure Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4832,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA",
+          "mode": "list",
+          "cachedResultName": "Insta extract - Himanshu",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 770488338,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA/edit#gid=770488338"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "brand_name": "={{ $json.brand_name }}",
+            "failure_reason": "={{ $json.failure_reason }}"
+          },
+          "matchingColumns": [
+            "brand_name"
+          ],
+          "schema": [
+            {
+              "id": "brand_name",
+              "displayName": "brand_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "brand_category",
+              "displayName": "brand_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "competitor_name",
+              "displayName": "competitor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "discovered_at",
+              "displayName": "discovered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "candidate_handle",
+              "displayName": "candidate_handle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failure_reason",
+              "displayName": "failure_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "097b5131-fb03-48f6-8594-f8deeb2d85d0",
+      "name": "Write Failure to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -4608,
+        1008
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "XxZd7R58w9xVgLml",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "8791a64b-5ebe-485f-98e0-01be54018cad",
+      "name": "Back to Loop (Fail)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -4384,
+        1008
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -7360,
+        784
+      ],
+      "id": "a4cfe4aa-39d6-4b80-94bc-40906a4c67c6",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA",
+          "mode": "list",
+          "cachedResultName": "Insta extract - Himanshu",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 770488338,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dvy3XC_o1eXlBLmbBk32ocGHPcEZ7kv3DnnLi_0IlTA/edit#gid=770488338"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "brand_name": "={{ $json.brand_name }}",
+            "discovered_at": "={{ new Date().toISOString() }}",
+            "status": "={{ $json.profile_valid ? 'found' : 'failed' }}",
+            "candidate_handle": "={{ $json.candidate_handle }}",
+            "competitor_name": "=",
+            "Follower": "={{ $json.instagram_followers }}"
+          },
+          "matchingColumns": [
+            "brand_name"
+          ],
+          "schema": [
+            {
+              "id": "brand_name",
+              "displayName": "brand_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "brand_category",
+              "displayName": "brand_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "competitor_name",
+              "displayName": "competitor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "discovered_at",
+              "displayName": "discovered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "candidate_handle",
+              "displayName": "candidate_handle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failure_reason",
+              "displayName": "failure_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follower",
+              "displayName": "Follower",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -5168,
+        672
+      ],
+      "id": "2afda7ba-0c2f-4b6d-a517-3d9c94b23d8d",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "XxZd7R58w9xVgLml",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Config – Sheet IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Competitors Sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop One by One": {
+      "main": [
+        [
+          {
+            "node": "Search Instagram Handle",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search Instagram Handle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Instagram Handle": {
+      "main": [
+        [
+          {
+            "node": "Extract Instagram Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Instagram Link": {
+      "main": [
+        [
+          {
+            "node": "Validate Handle Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Handle Format": {
+      "main": [
+        [
+          {
+            "node": "Handle Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Valid?": {
+      "main": [
+        [
+          {
+            "node": "Verify Live Instagram Profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Failure Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Live Instagram Profile": {
+      "main": [
+        [
+          {
+            "node": "Extract Profile Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Profile Fields": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Failure Record": {
+      "main": [
+        [
+          {
+            "node": "Write Failure to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Failure to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Back to Loop (Fail)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Loop One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Config – Sheet IDs": {
+      "main": [
+        [
+          {
+            "node": "Read Competitors Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "729b09de-54d6-46ae-b649-6dbeeddbe6f8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f7be661d865d877a8c512da9324a2515213ddcd32977e6e8c6630db6344e84f3"
+  },
+  "id": "VqtVWiakkZTusMoG",
+  "tags": []
+}

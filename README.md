@@ -2,7 +2,7 @@
 
 > An **n8n automation workflow** that automatically discovers, validates, and writes verified Instagram handles for competitor brands — directly into your Google Sheets.
 
-![Workflow Overview]
+![Workflow Overview](./workflow-screenshot.png)
 
 ---
 

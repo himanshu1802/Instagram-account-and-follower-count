@@ -130,4 +130,4 @@ MIT License – feel free to use, modify, and share.
 
 Built by **Himanshu** — automating competitor research so you don't have to do it manually.
 
-> Got questions or improvements? Open an issue or connect on [LinkedIn](https://www.linkedin.com/in/himanshu).
+> Got questions or improvements? Open an issue or connect on [LinkedIn](https://www.linkedin.com/in/himanshu-yadav-83b963209/).
